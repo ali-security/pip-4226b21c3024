@@ -16,9 +16,13 @@ def setup_broken_stdout_test(
     # Call close() on stdout to cause a broken pipe.
     assert proc.stdout is not None
     proc.stdout.close()
-    returncode = proc.wait()
+    # Drain stderr to EOF *before* waiting. `pip -vv` can emit more verbose
+    # logging than the OS pipe buffer holds, and waiting on the child while its
+    # stderr pipe is still unread deadlocks both processes (this hung forever on
+    # windows-latest with CPython 3.14+). Reading first lets the child finish.
     assert proc.stderr is not None
     stderr = proc.stderr.read().decode("utf-8")
+    returncode = proc.wait()
 
     expected_msg = "ERROR: Pipe to stdout was broken"
     if deprecated_python:
